@@ -8,6 +8,8 @@
   let searchQuery = "";
   let dragSrcId = null;
 
+  const STORAGE_KEY = "todo-list-tasks";
+
   // ---------- Helpers ----------
   function generateId() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -124,7 +126,15 @@
     // Header
     const header = createElement("header", { className: "header" }, [
       createElement("h1", { textContent: "To-Do List" }),
+      createElement("p", {
+        textContent: "Создавайте, редактируйте и организуйте свои задачи",
+      }),
     ]);
+
+    // Form
+    const formCard = createElement("section", {
+      className: "form-card",
+      "aria-label": "Добавить задачу",
     });
 
     const form = createElement("form", { id: "task-form" });
@@ -199,6 +209,9 @@
       "aria-label": "Сортировка",
     });
     [
+      { value: "order", text: "По порядку" },
+      { value: "date-asc", text: "Дата ↑" },
+      { value: "date-desc", text: "Дата ↓" },
     ].forEach((opt) => {
       sortSelect.appendChild(
         createElement("option", { value: opt.value, textContent: opt.text })
@@ -211,6 +224,7 @@
     // Task list
     const taskList = createElement("ul", {
       className: "task-list",
+      id: "task-list",
       "aria-label": "Список задач",
     });
 
@@ -295,7 +309,7 @@
     deleteBtn.addEventListener("click", () => deleteTask(task.id));
 
     actions.append(editBtn, deleteBtn);
-    li.append(checkbox, content);
+    li.append(checkbox, content, actions);
 
     return li;
   }
@@ -402,5 +416,117 @@
       saveTasks();
       renderTasks();
     }
+  }
+
+  // ---------- Drag & Drop ----------
+  function handleDragStart(e) {
+    dragSrcId = e.currentTarget.dataset.id;
+    e.currentTarget.classList.add("dragging");
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", dragSrcId);
+  }
+
+  function handleDragEnd(e) {
+    e.currentTarget.classList.remove("dragging");
+    document.querySelectorAll(".task-item").forEach((el) => {
+      el.classList.remove("drag-over");
+    });
+    dragSrcId = null;
+  }
+
+  function handleDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  }
+
+  function handleDragEnter(e) {
+    e.preventDefault();
+    const target = e.currentTarget;
+    if (target.dataset.id !== dragSrcId) {
+      target.classList.add("drag-over");
+    }
+  }
+
+  function handleDragLeave(e) {
+    e.currentTarget.classList.remove("drag-over");
+  }
+
+  function handleDrop(e) {
+    e.preventDefault();
+    e.currentTarget.classList.remove("drag-over");
+
+    const targetId = e.currentTarget.dataset.id;
+    if (!dragSrcId || dragSrcId === targetId) return;
+
+    // Only allow reorder when sorting by custom order
+    if (sortBy !== "order") {
+      // Temporarily switch to order mode so user sees the new order
+      sortBy = "order";
+      document.getElementById("sort-by").value = "order";
+    }
+
+    const srcIndex = tasks.findIndex((t) => t.id === dragSrcId);
+    const targetIndex = tasks.findIndex((t) => t.id === targetId);
+    if (srcIndex === -1 || targetIndex === -1) return;
+
+    // Reorder by order values
+    const sorted = [...tasks].sort((a, b) => a.order - b.order);
+    const srcPos = sorted.findIndex((t) => t.id === dragSrcId);
+    const targetPos = sorted.findIndex((t) => t.id === targetId);
+
+    const [moved] = sorted.splice(srcPos, 1);
+    sorted.splice(targetPos, 0, moved);
+
+    sorted.forEach((t, i) => {
+      t.order = i;
+    });
+
+    saveTasks();
+    renderTasks();
+  }
+
+  // ---------- Render ----------
+  function renderTasks() {
+    const listEl = document.getElementById("task-list");
+    const statsEl = document.getElementById("stats");
+    if (!listEl) return;
+
+    listEl.innerHTML = "";
+
+    const filtered = getFilteredTasks();
+
+    if (filtered.length === 0) {
+      const empty = createElement("div", { className: "empty-state" }, [
+        createElement("p", {
+          textContent:
+            tasks.length === 0
+              ? "Пока нет задач. Добавьте первую!"
+              : "Ничего не найдено по текущим фильтрам.",
+        }),
+      ]);
+      listEl.appendChild(empty);
+    } else {
+      filtered.forEach((task) => {
+        listEl.appendChild(createTaskItem(task));
+      });
+    }
+
+    const total = tasks.length;
+    const completed = tasks.filter((t) => t.completed).length;
+    const active = total - completed;
+    statsEl.textContent = `Всего: ${total} · Активных: ${active} · Выполнено: ${completed}`;
+  }
+
+  // ---------- Init ----------
+  function init() {
+    loadTasks();
+    buildApp();
+    renderTasks();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
   }
 })();
