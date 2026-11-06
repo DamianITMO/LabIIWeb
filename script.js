@@ -125,7 +125,7 @@
 
     // Header
     const header = createElement("header", { className: "header" }, [
-      createElement("h1", { textContent: "To-Do List" }),
+      createElement("h1", { textContent: "Задачник" }),
       createElement("p", {
         textContent: "Создавайте, редактируйте и организуйте свои задачи",
       }),
